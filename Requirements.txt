@@ -1,0 +1,4 @@
+playwright
+pytest-playwright
+playwright install
+python-dotenv
