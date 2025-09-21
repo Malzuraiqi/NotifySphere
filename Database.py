@@ -44,7 +44,7 @@ class Database:
             connection = sqlite3.connect("tasks.db")
             cursor = connection.cursor()
 
-            cursor.execute("SELECT day, course, assignment, status, due_date, url FROM tasks")
+            cursor.execute("SELECT day, course, assignment, status, due_date, url FROM tasks ORDER BY day ASC")
 
             columns = [description[0] for description in cursor.description]
 
@@ -52,6 +52,28 @@ class Database:
             for row in cursor:
                 task_dict = dict(zip(columns, row))
                 all_days.append(task_dict)
+
+            return all_days
+
+        except sqlite3.Error as e:
+            print(f"Database error: {e}")
+            return []
+
+        finally:
+            if connection:
+                connection.close()
+
+    def get_tasks_for_comparison(self):
+        try:
+            connection = sqlite3.connect("tasks.db")
+            cursor = connection.cursor()
+
+            cursor.execute("SELECT day, assignment FROM tasks WHERE status='Submitted for grading'")
+
+            all_days = []
+            for row in cursor:
+                day_tuple = (int(row[0]), row[1])
+                all_days.append(day_tuple)
 
             return all_days
 
