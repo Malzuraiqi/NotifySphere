@@ -25,9 +25,6 @@ class Database:
                         INSERT OR IGNORE INTO tasks (day, course, assignment, status, due_date, url)
                         VALUES (:day, :course, :assignment, :status, :due_date, :url)
                     ''', task)
-            
-            inserted_count = cursor.rowcount
-            print(inserted_count)
 
             connection.commit()
 

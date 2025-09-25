@@ -67,7 +67,7 @@ class App:
             col = i % 3
             
             status = task['status']
-            card_color = 'light green' if status == 'Submitted for grading' else 'light red'
+            card_color = 'light green' if status == 'Submitted for grading' else '#FF7F7F'
             # Create card with consistent styling
             card = tk.Frame(
                 inner_frame, 

@@ -2,3 +2,4 @@ playwright
 pytest-playwright
 playwright install
 python-dotenv
+PySide6

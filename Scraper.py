@@ -52,42 +52,64 @@ class Scraper:
 
     def get_tasks(self, page:Page):
         all_tasks_details = []
-        calender_link = self.goto_calendar(page)       
+        tasks_by_day = []
+        month_links = []  # Store links for each month
+
+        # First month
+        calender_link = self.goto_calendar(page)
+        month_links.append(calender_link)  # Store first month link
+        tasks_by_day.extend([(day, title, 0) for day, title in self.check_database(page)])  # Add month index
+
+        # Second month
+        page.click("a[title='Next month']")
+        page.wait_for_load_state('networkidle')
+        page.wait_for_timeout(2000)
+        
+        # Get new calendar link for second month - be more specific
+        # Option 1: Get the current month link from the calendar header
+        new_calender_link = page.locator("a[title='This month']").nth(1).get_attribute('href')
+        # Or Option 2: Use the main calendar navigation
+        # new_calender_link = page.locator(".calendar-controls >> a[title='This month']").get_attribute("href")
+        # Or Option 3: Get the link that's currently visible in the main calendar area
+        # new_calender_link = page.locator(".maincalendar >> a[title='This month']").first.get_attribute("href")
+        
+        month_links.append(new_calender_link)  # Store second month link
+        
+        tasks_by_day.extend([(day, title, 1) for day, title in self.check_database(page)])  # Add month index
+
         day_in_unix = 86400
-        tasks_by_day = self.check_database(page)
 
         if tasks_by_day:
-            for day, _ in tasks_by_day:
-                # change the link to be suitable for each day instead of the month
-                day_one = int(calender_link[-10:])
+            for day, title, month_index in tasks_by_day:
+                # Use the correct month link
+                current_calender_link = month_links[month_index]
+                
+                day_one = int(current_calender_link[-10:])
                 due_day = day_one + (day-1) * day_in_unix
-                due_day_link = calender_link.replace(str(day_one), str(due_day)).replace("month", "day")
+                due_day_link = current_calender_link.replace(str(day_one), str(due_day)).replace("month", "day")
                 
                 page.goto(due_day_link)
 
-                # get all the links for tasks that are due that day (can be more than one)
+                # Rest of your processing code...
                 tasks = page.query_selector_all('a:has-text("Go to activity")')
-
-                # save the links to a list
                 links = []
                 for task in tasks:
                     link = task.get_attribute("href")
                     links.append(link)
                 
-                # visit all the links and extract the data
                 for link in links:
                     page.goto(link)
                     page.wait_for_load_state('networkidle')
 
-                    # so that if there is any issue with a certain task it doesn't crash the whole program
                     try:
                         course_title = page.locator(".page-header-headings h1").text_content()
                         assignment = page.get_by_role("main").locator("h2").text_content()
-                        submission_status = page.locator(".submissionstatussubmitted.cell.c1.lastcol").text_content()
+                        submission_status = page.locator(".cell.c1.lastcol").nth(0).text_content()
                         due_date = page.locator(".cell.c1.lastcol").nth(2).text_content()
 
                         task_details = {
                             'day': day,
+                            'month': month_index + 1,
                             'course': course_title.strip(),
                             'assignment': assignment.strip(),
                             'status': submission_status.strip(),
