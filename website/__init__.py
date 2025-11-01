@@ -14,9 +14,11 @@ def create_app():
     secret_key = os.environ.get('SECRET_KEY')
     if not secret_key:
         raise ValueError("No SECRET_KEY set in environment variables")
-    
     app.config['SECRET_KEY'] = secret_key
-    app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{DB_NAME}'
+    
+    database_url = os.environ.get('DATABASE_URL', f"sqlite:///{DB_NAME}")
+    app.config['SQLALCHEMY_DATABASE_URI'] = database_url
+    
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False 
     db.init_app(app)
 
@@ -28,7 +30,8 @@ def create_app():
 
     from .models import User, Task
 
-    create_database(app)
+    with app.app_context():
+        db.create_all()
 
     login_manager = LoginManager()
     login_manager.login_view = 'auth.login'
@@ -51,10 +54,3 @@ def resource_path(relative_path):
     except AttributeError:
         base_path = os.path.abspath(".")
     return os.path.join(base_path, relative_path)
-
-def create_database(app):
-    """Create database if it doesn't exist"""
-    if not os.path.exists(resource_path(f'website/instance/{DB_NAME}')):
-        with app.app_context():
-            db.create_all()
-        print('Database created successfully!')
