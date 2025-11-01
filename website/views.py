@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 from flask_login import login_required, current_user
 from Scraper import Scraper
-from .models import get_tasks_details, get_user_cookies
+from .models import get_tasks_details, insert_tasks
 
 """Blueprint for main application views and routes"""
 views = Blueprint('views', __name__)
@@ -25,16 +25,23 @@ def start_scraping():
     if not month_year:
         flash('Please select a month', category='warning')
         return redirect(url_for('views.home'))
-    
+
     scraper = Scraper()
-    result = scraper.run_scraper(current_user.id, month_year)
-    
-    if result:
-        flash('Scraping completed successfully!', category='success')
-        return redirect(url_for('views.home'))
-    else:
+
+    # Step 1: Initialize session with cookies
+    if not scraper.init_session_with_cookies(current_user.id):
         flash('Your session has timed out. Please log in again.', category='danger')
         return redirect(url_for('auth.login'))
+
+    # Step 2: Get tasks for the month
+    tasks = scraper.get_tasks(month_year, current_user.id)
+
+    # Step 3: Insert new tasks into the database
+    insert_tasks(current_user.id, tasks)
+
+    flash('Scraping completed successfully!', category='success')
+    return redirect(url_for('views.home'))
+
     
 @views.route('/shutdown')
 def shutdown():
