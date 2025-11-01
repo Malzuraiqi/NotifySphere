@@ -1,0 +1,206 @@
+{% extends "base.html" %} {% block title %}Dashboard - NotifySphere{% endblock
+%} {% block content %}
+<button
+  id="controlFloatingBtn"
+  class="btn btn-custom position-fixed d-flex align-items-center justify-content-center gap-2"
+  style="
+    bottom: 2rem;
+    right: 2rem;
+    padding: 0.75rem 1.5rem;
+    z-index: 1000;
+    border-radius: 2rem;
+  "
+>
+  <i class="fas fa-sync-alt"></i>
+  <span>Refresh</span>
+</button>
+
+<div id="controlModal" class="modal fade">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <form
+        method="POST"
+        action="{{ url_for('views.start_scraping') }}"
+        id="scrapingForm"
+      >
+        <div class="modal-header">
+          <h5 class="modal-title">Scraping Controls</h5>
+          <button
+            type="button"
+            class="btn-close"
+            data-bs-dismiss="modal"
+          ></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label">Select Time Period</label>
+            <select class="form-select" name="month_year">
+              <option value="1756670400">September 2025</option>
+              <option value="1759262400">October 2025</option>
+              <option value="1761940800" selected>November 2025</option>
+              <option value="1764532800">December 2025</option>
+            </select>
+          </div>
+          <button type="submit" class="btn btn-custom w-100" id="scrapingBtn">
+            <span id="scrapingBtnText">
+              <i class="fas fa-sync-alt me-2"></i>Start Scraping Process
+            </span>
+            <div
+              id="scrapingSpinner"
+              class="spinner-border spinner-border-sm ms-2 d-none"
+              role="status"
+            >
+              <span class="visually-hidden">Loading...</span>
+            </div>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div class="container mt-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h1 class="h3 mb-1">Assignments</h1>
+      <p class="text-muted mb-0">
+        Click assignments to open in Moodle (may require login)
+      </p>
+    </div>
+    <div class="btn-group">
+      <button
+        class="btn btn-outline-secondary btn-sm filter-btn active"
+        data-filter="all"
+      >
+        All
+      </button>
+      <button
+        class="btn btn-outline-secondary btn-sm filter-btn"
+        data-filter="submitted"
+      >
+        <i class="fas fa-check-circle me-1 text-success"></i>Submitted
+      </button>
+      <button
+        class="btn btn-outline-secondary btn-sm filter-btn"
+        data-filter="pending"
+      >
+        <i class="fas fa-clock me-1 text-warning"></i>Pending
+      </button>
+    </div>
+  </div>
+
+  <div class="row">
+    {% for item in assignments %}
+    <div
+      class="col-md-6 col-lg-4 mb-4"
+      data-status="{{ 'submitted' if item.status == 'Submitted for grading' else 'pending' }}"
+    >
+      <div
+        class="card h-100 shadow-sm border-0"
+        style="cursor: pointer"
+        onclick="window.open('{{ item.url }}', '_blank', 'noopener,noreferrer')"
+      >
+        <div class="card-header bg-transparent border-0 pb-0">
+          <span
+            class="badge {% if item.status == 'Submitted for grading' %}bg-success{% else %}bg-warning{% endif %}"
+          >
+            <i
+              class="fas {% if item.status == 'Submitted for grading' %}fa-check{% else %}fa-clock{% endif %} me-1"
+            ></i>
+            {{ 'Submitted' if item.status == 'Submitted for grading' else
+            'Pending' }}
+          </span>
+        </div>
+        <div class="card-body">
+          <h6 class="card-title text-dark">{{ item.course }}</h6>
+          <p class="card-text text-muted small mb-2">{{ item.assignment }}</p>
+          <div class="d-flex align-items-center text-muted small">
+            <i class="fas fa-calendar-alt me-1"></i>
+            <span>Due: {{ item.due_date }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<style>
+  .card {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    border: 1px solid #e9ecef;
+  }
+
+  .card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
+  }
+
+  #controlFloatingBtn {
+    box-shadow: 0 4px 12px rgba(231, 14, 23, 0.3);
+    transition: all 0.3s ease;
+  }
+
+  #controlFloatingBtn:hover {
+    transform: scale(1.1);
+    box-shadow: 0 6px 16px rgba(231, 14, 23, 0.4);
+  }
+
+  .filter-btn.active {
+    background-color: rgba(231, 14, 23, 0.1) !important;
+    border-color: #e70e17 !important;
+    color: #e70e17 !important;
+  }
+
+  .dropdown-item:hover,
+  .dropdown-item:focus {
+    background-color: rgba(231, 14, 23, 0.1) !important;
+    color: #e70e17 !important;
+  }
+</style>
+{% endblock %} {% block scripts %}
+<script>
+  // Modal control
+  const floatingBtn = document.getElementById("controlFloatingBtn");
+  const controlModal = new bootstrap.Modal(
+    document.getElementById("controlModal")
+  );
+
+  floatingBtn.addEventListener("click", () => {
+    controlModal.show();
+  });
+
+  // Filter functionality
+  const filterButtons = document.querySelectorAll("[data-filter]");
+  const assignmentCards = document.querySelectorAll("[data-status]");
+
+  filterButtons.forEach((button) => {
+    button.addEventListener("click", function () {
+      filterButtons.forEach((btn) => btn.classList.remove("active"));
+      this.classList.add("active");
+
+      const filter = this.getAttribute("data-filter");
+
+      assignmentCards.forEach((card) => {
+        card.style.display =
+          filter === "all" || card.getAttribute("data-status") === filter
+            ? "block"
+            : "none";
+      });
+    });
+  });
+
+  // Scraping form loading
+  document
+    .getElementById("scrapingForm")
+    ?.addEventListener("submit", function () {
+      const btn = document.getElementById("scrapingBtn");
+      const btnText = document.getElementById("scrapingBtnText");
+      const spinner = document.getElementById("scrapingSpinner");
+
+      btn.disabled = true;
+      btnText.innerHTML = '<i class="fas fa-sync-alt me-2"></i>Scraping...';
+      spinner?.classList.remove("d-none");
+    });
+</script>
+{% endblock %}

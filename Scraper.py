@@ -1,127 +1,150 @@
-from dotenv import load_dotenv
-import os, re
-from playwright.sync_api import Page
-from Database import Database
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+#from selenium.webdriver.chrome.service import Service
+from bs4 import BeautifulSoup
+#from webdriver_manager.chrome import ChromeDriverManager
+from website.models import insert_tasks, get_tasks_for_comparison, get_user_cookies
 
 class Scraper:
-    def login(self, page:Page):
-        load_dotenv()
-        page.goto("https://my.cud.ac.ae/my/")
-        username = os.getenv('TEST_USERNAME', '')
-        password = os.getenv('TEST_PASSWORD', '')
-        page.fill('#username', username)
-        page.fill('#password', password)
+    def run_scraper(self, user_id, date):
+        saved_cookies = get_user_cookies(user_id)
+        print(f"DEBUG: Loaded {len(saved_cookies)} cookies from DB")
+        
+        if not saved_cookies:
+            return False
+        
+        options = webdriver.ChromeOptions()
+        driver = webdriver.Chrome(options=options)
+        
+        try:
+            driver.get("my.cud.ac.ae")
+            for cookie in saved_cookies:
+                if "my.cud.ac.ae" in cookie['domain']:
+                    driver.add_cookie(cookie)
 
-        page.click('button[type="submit"]')
-        page.wait_for_url(re.compile(r".*my\.cud\.ac\.ae.*")) # make sure you're still in mycud
+            driver.get("yourvoice.cud.ac.ae")
+            for cookie in saved_cookies:
+                if "yourvoice.cud.ac.ae" in cookie['domain']:
+                    driver.add_cookie(cookie)
+            
+            driver.get("https://my.cud.ac.ae/my/")
+            print(f"DEBUG: Final URL: {driver.current_url}")
+            print(f"DEBUG: Page title: {driver.title}")
+            
+            # Check if still logged in
+            if "my.cud.ac.ae/my/" not in driver.current_url:
+                print("DEBUG: NOT logged in - redirect detected")
+                return False
+            
+            print("DEBUG: Successfully logged in with cookies!")
+            # ... rest of code
+            
+        except Exception as e:
+            print(f"DEBUG: Error: {e}")
+            return False
+        finally:
+            driver.quit()
 
-    def goto_calendar(self, page:Page):
-        self.login(page)
-        calender = page.get_by_title("This month")
-        calender_link = calender.get_attribute("href")
-        calender.click()
-        page.wait_for_load_state('networkidle')  # Wait for page to load
-
-        return calender_link
-
-    def check_database(self, page:Page):
-        days = page.query_selector_all("td.clickable[data-region='day']:has(li[data-region='event-item'])")
+    def check_database(self, driver, user_id):
+        """Check for new tasks not already in database"""
+        # Find days with tasks using CSS selector
+        days = driver.find_elements(By.CSS_SELECTOR, "td.clickable[data-region='day']:has(li[data-region='event-item'])")
+        print(days)
         tasks_by_day = []
+
         for day in days:
-
-            day_anchor = day.query_selector("a.day")
-            if day_anchor:
-                day_number = int(day_anchor.text_content().strip())
-            else:
-                continue
-
-            task_anchors = day.query_selector_all("li[data-region='event-item'] a[data-action='view-event']")
-
-            for task_anchor in task_anchors:
-                title = task_anchor.get_attribute("title")
-                if title:
-                    if " is due" in title:
+            try:
+                day_anchor = day.find_element(By.CSS_SELECTOR, "a.day")
+                day_number = int(day_anchor.text.strip())
+                
+                task_anchors = day.find_elements(By.CSS_SELECTOR, "li[data-region='event-item'] a[data-action='view-event']")
+                
+                for task_anchor in task_anchors:
+                    title = task_anchor.get_attribute("title")
+                    print(title, flush=True)
+                    if title and " is due" in title:
                         title = title.replace(" is due", '')
+                        tasks_by_day.append((day_number, title))
+                        
+            except Exception as e:
+                continue  # Skip this day if any error
 
-                    tasks_by_day.append((day_number, title))
-
-        db = Database()
-        database_tasks = db.get_tasks_for_comparison()
-
+        database_tasks = get_tasks_for_comparison(user_id)
         return list(set(tasks_by_day) - set(database_tasks))
 
-    def get_tasks(self, page:Page):
+    def get_tasks(self, driver, date, user_id):
+        """Get all tasks for a specific month"""
         all_tasks_details = []
-        tasks_by_day = []
-        month_links = []  # Store links for each month
-
-        # First month
-        calender_link = self.goto_calendar(page)
-        month_links.append(calender_link)  # Store first month link
-        tasks_by_day.extend([(day, title, 0) for day, title in self.check_database(page)])  # Add month index
-
-        # Second month
-        page.click("a[title='Next month']")
-        page.wait_for_load_state('networkidle')
-        page.wait_for_timeout(2000)
+        calendar_link = f"https://my.cud.ac.ae/calendar/view.php?view=month&time={date}"
+        driver.get(calendar_link)
         
-        # Get new calendar link for second month - be more specific
-        # Option 1: Get the current month link from the calendar header
-        new_calender_link = page.locator("a[title='This month']").nth(1).get_attribute('href')
-        # Or Option 2: Use the main calendar navigation
-        # new_calender_link = page.locator(".calendar-controls >> a[title='This month']").get_attribute("href")
-        # Or Option 3: Get the link that's currently visible in the main calendar area
-        # new_calender_link = page.locator(".maincalendar >> a[title='This month']").first.get_attribute("href")
-        
-        month_links.append(new_calender_link)  # Store second month link
-        
-        tasks_by_day.extend([(day, title, 1) for day, title in self.check_database(page)])  # Add month index
-
+        tasks_by_day = self.check_database(driver, user_id)
         day_in_unix = 86400
-
-        if tasks_by_day:
-            for day, title, month_index in tasks_by_day:
-                # Use the correct month link
-                current_calender_link = month_links[month_index]
-                
-                day_one = int(current_calender_link[-10:])
-                due_day = day_one + (day-1) * day_in_unix
-                due_day_link = current_calender_link.replace(str(day_one), str(due_day)).replace("month", "day")
-                
-                page.goto(due_day_link)
-
-                # Rest of your processing code...
-                tasks = page.query_selector_all('a:has-text("Go to activity")')
-                links = []
-                for task in tasks:
-                    link = task.get_attribute("href")
-                    links.append(link)
-                
-                for link in links:
-                    page.goto(link)
-                    page.wait_for_load_state('networkidle')
-
-                    try:
-                        course_title = page.locator(".page-header-headings h1").text_content()
-                        assignment = page.get_by_role("main").locator("h2").text_content()
-                        submission_status = page.locator(".cell.c1.lastcol").nth(0).text_content()
-                        due_date = page.locator(".cell.c1.lastcol").nth(2).text_content()
-
-                        task_details = {
-                            'day': day,
-                            'month': month_index + 1,
-                            'course': course_title.strip(),
-                            'assignment': assignment.strip(),
-                            'status': submission_status.strip(),
-                            'due_date': due_date.strip(),
-                            'url': link
-                        }
-
-                        all_tasks_details.append(task_details)
-
-                    except Exception as e:
-                        print(f"Error processing task {link}: {e}")
-        else:
-            print(f"{len(tasks_by_day)} new task/s")
+        
+        for day, _ in tasks_by_day:
+            due_day = int(date) + (day - 1) * day_in_unix
+            day_link = calendar_link.replace("month", "day").replace(date, str(due_day))
+            driver.get(day_link)
+            
+            # Find "Go to activity" links
+            tasks = driver.find_elements(By.XPATH, "//a[contains(text(), 'Go to activity')]")
+            links = [task.get_attribute("href") for task in tasks]
+            
+            for link in links:
+                task_details = self.get_task_details(driver, link)
+                if task_details:
+                    task_details.update({
+                        'day': day,
+                        'month': date
+                    })
+                    all_tasks_details.append(task_details)
 
         return all_tasks_details
+
+
+    def get_task_details(self, driver, link):
+        """Extract task details from assignment page with both formats"""
+        driver.get(link)
+        WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+        
+        try:
+            # Try normal format first
+            course_title = driver.find_element(By.CSS_SELECTOR, ".page-header-headings h1").text
+            assignment = driver.find_element(By.CSS_SELECTOR, "main h2").text
+            status_elements = driver.find_elements(By.CSS_SELECTOR, ".cell.c1.lastcol")
+            
+            if len(status_elements) >= 3:
+                submission_status = status_elements[0].text
+                due_date = status_elements[2].text
+            else:
+                print('First fails')
+                raise Exception("Normal format failed")
+                
+        except Exception:
+            # Alternative format
+            try:
+                course_title = driver.find_element(By.CSS_SELECTOR, ".page-header-headings h1").text
+                assignment = driver.find_element(By.CSS_SELECTOR, ".cell.c0").text
+                due_date = driver.find_element(By.CSS_SELECTOR, ".data.cell.c2").text
+                
+                # Check submission status from table
+                submission_tables = driver.find_elements(By.CSS_SELECTOR, 'table.submissionsDataTable')
+                if submission_tables and len(submission_tables) > 0:
+                    rows = submission_tables[0].find_elements(By.CSS_SELECTOR, 'tbody tr')
+                    submission_status = "Submitted for grading" if len(rows) > 0 else "Not submitted"
+                else:
+                    submission_status = "Not submitted"
+                    
+            except Exception as e:
+                print(f"Both formats failed for {link}: {e}")
+                return None
+
+        return {
+            'course': course_title.strip(),
+            'assignment': assignment.strip(),
+            'status': submission_status.strip(),
+            'due_date': due_date.strip(),
+            'url': link
+        }

@@ -1,0 +1,70 @@
+{% extends "base.html" %} {% block title %}Login - NotifySphere{% endblock %} {%
+block content %}
+<div class="row justify-content-center">
+  <div class="col-md-12 col-lg-10 col-xl-8">
+    <div class="card shadow-sm border-0">
+      <div class="card-body p-5">
+        <div class="text-center mb-4">
+          <h2 class="card-title fw-bold" style="color: #e70e17">Welcome</h2>
+          <p class="text-muted">Sign in to your CUD account</p>
+        </div>
+
+        <form method="POST" action="{{ url_for('auth.login') }}" id="loginForm">
+          <div class="mb-3">
+            <label for="email" class="form-label">Student Email Address</label>
+            <input
+              type="email"
+              class="form-control"
+              id="email"
+              name="username"
+              required
+              placeholder="Enter your email"
+            />
+          </div>
+
+          <div class="mb-4">
+            <label for="password" class="form-label">Password</label>
+            <input
+              type="password"
+              class="form-control"
+              id="password"
+              name="password"
+              required
+              placeholder="Enter your password"
+            />
+          </div>
+
+          <div class="d-grid mb-3">
+            <button type="submit" class="btn btn-custom py-2" id="loginBtn">
+              <span id="btnText">Sign In</span>
+              <div
+                id="btnSpinner"
+                class="spinner-border spinner-border-sm ms-2 d-none"
+                role="status"
+              >
+                <span class="visually-hidden">Loading...</span>
+              </div>
+            </button>
+          </div>
+
+          <small class="text-muted text-center d-block">
+            🔒 Your credentials are verified securely and never stored
+          </small>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %} {% block scripts %}
+<script>
+  document.getElementById("loginForm")?.addEventListener("submit", function () {
+    const btn = document.getElementById("loginBtn");
+    const btnText = document.getElementById("btnText");
+    const spinner = document.getElementById("btnSpinner");
+
+    btn.disabled = true;
+    btnText.textContent = "Signing in...";
+    spinner?.classList.remove("d-none");
+  });
+</script>
+{% endblock %}

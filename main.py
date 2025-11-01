@@ -1,23 +1,19 @@
-from playwright.sync_api import sync_playwright
-from Scraper import Scraper
-from Database import Database
-from GUI import App
-import tkinter as tk
+from website import create_app
+import signal, sys, webbrowser, os
+from threading import Timer
 
-def main():
-    db = Database()
-    
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=False)
-        page = browser.new_page()
-        scraper = Scraper()
-        tasks_details = scraper.get_tasks(page)
+app = create_app()
 
-    db.insert_tasks(tasks_details)
-    
-    root = tk.Tk()
-    app = App(root)
-    root.mainloop()
+def open_browser():
+    webbrowser.open_new("http://127.0.0.1:5000")
+
+def signal_handler(sig, frame):
+    sys.exit(0)
 
 if __name__ == "__main__":
-    main()
+    signal.signal(signal.SIGINT, signal_handler)
+    
+    if os.environ.get('WERKZEUG_RUN_MAIN') != 'true': 
+        Timer(1, open_browser).start()
+    
+    app.run(debug=True, host='127.0.0.1', port=5000)
