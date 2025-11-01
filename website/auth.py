@@ -42,10 +42,8 @@ def get_cookies_during_login(username, password):
             }
             for c in session.cookies
         ]
-        print(cookies_list)
         return cookies_list
     else:
-        print("login failed or no cookies")
         return None
 
 @auth.route('/login', methods=['POST', 'GET'])

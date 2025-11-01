@@ -28,27 +28,22 @@ class Scraper:
         """
         try:
             # Format 1
-            print("used format 1")
             dt = datetime.strptime(date_str, "%A, %d %B %Y, %I:%M %p")
             return dt.strftime("%d/%m/%Y %I:%M %p")
         except ValueError:
             try:
                 # Format 2
-                print("used format 2")
                 dt = datetime.strptime(date_str, "%d %b %Y - %H:%M")
                 return dt.strftime("%d/%m/%Y %I:%M %p")
             except ValueError:
                 # Could not parse
-                print(f"DEBUG: Unknown date format: {date_str}")
                 return None
 
     def load_cookies_from_db(self, user_id):
         """Load cookies from database and add them to the session"""
         saved_cookies = get_user_cookies(user_id)
-        print(f"DEBUG: Loaded {len(saved_cookies)} cookies from DB")
 
         if not saved_cookies:
-            print("DEBUG: No cookies found for this user.")
             return False
 
         for cookie in saved_cookies:
@@ -64,7 +59,6 @@ class Scraper:
                 }
                 self.session.cookies.set(**cookie_dict)
 
-        print(f"DEBUG: Added {len(self.session.cookies)} cookies to session")
         return True
     
     def check_login_status(self):
@@ -73,10 +67,8 @@ class Scraper:
         response = self.session.get(dashboard_url)
 
         if "login" in response.url.lower() or response.status_code != 200:
-            print("DEBUG: Not logged in - login required")
             return False
 
-        print("DEBUG: Already logged in with current cookies")
         return True
     
     def init_session_with_cookies(self, user_id):
@@ -143,7 +135,6 @@ class Scraper:
         # Step 1: Fetch month page
         response = self.session.get(calendar_url)
         if response.status_code != 200:
-            print(f"DEBUG: Failed to fetch calendar month page ({response.status_code})")
             return []
 
         # Step 2: Find new tasks
@@ -184,7 +175,6 @@ class Scraper:
         """
         response = self.session.get(link)
         if response.status_code != 200:
-            print(f"DEBUG: Failed to fetch task page: {link}")
             return None
 
         soup = BeautifulSoup(response.text, "html.parser")
@@ -220,12 +210,9 @@ class Scraper:
                     submission_status = "Not submitted"
 
             except Exception as e:
-                print(f"DEBUG: Both formats failed for {link}: {e}")
                 return None
 
-        print(due_date_str)
         due_date = self.parse_due_date(due_date_str)
-        print(due_date)
         return {
             "course": course_title,
             "assignment": assignment,
