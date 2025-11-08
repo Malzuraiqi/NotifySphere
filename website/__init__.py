@@ -16,8 +16,14 @@ def create_app():
         raise ValueError("No SECRET_KEY set in environment variables")
     app.config['SECRET_KEY'] = secret_key
     
-    database_url = os.environ.get('DATABASE_URL', f"sqlite:///{DB_NAME}")
-    app.config['SQLALCHEMY_DATABASE_URI'] = database_url
+    if os.environ.get('VERCEL_ENV') == 'production':
+        database_url = os.environ.get('DATABASE_URL')
+        # Convert postgres:// to postgresql:// for SQLAlchemy
+        if database_url and database_url.startswith('postgres://'):
+            database_url = database_url.replace('postgres://', 'postgresql://', 1)
+    else:
+        # Local development - use SQLite or your Supabase URL
+        database_url = os.environ.get('DATABASE_URL', 'sqlite:///database.db')
     
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False 
     db.init_app(app)
